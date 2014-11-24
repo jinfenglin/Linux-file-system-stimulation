@@ -351,14 +351,18 @@ public class MyFileSystem implements FileSystem {
                         return DirectBlock.hole;
                     else if((indirect_block.ptr[seek_block] = freeMap.find()) == 0)//if want to write check space
                         return null;
+                    else //update the indirect ptr
+                    {
+                    	disk.write(inode.ptr[10],indirect_block);
+                    }
                 return new DirectBlock(disk, indirect_block.ptr[seek_block], blockOff, direct_fresh);
         		
         	}
         	else if(blockNum>=14&&blockNum<30)
         	{
         		
-        		//System.err.println("Large files unsupported,"+blockNum+" blocks required!");
-                //System.exit(1);
+        		System.err.println("Large files unsupported,"+blockNum+" blocks required!");
+                System.exit(1);
         	}
         	else if(blockNum>=30&&blockNum<94)
         	{
