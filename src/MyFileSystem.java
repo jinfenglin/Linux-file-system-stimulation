@@ -325,7 +325,7 @@ public class MyFileSystem implements FileSystem {
         int blockOff  = seekPtr % Disk.BLOCK_SIZE;
         
         if(blockNum > 9) {
-        	if(blockNum>=10&&blockNum<14)
+        	if(blockNum>=10&&blockNum<10+128)
         	{
         		int seek_block=blockNum-10;
         		boolean indirect_fresh = inode.ptr[10] == 0;
@@ -351,27 +351,110 @@ public class MyFileSystem implements FileSystem {
                         return DirectBlock.hole;
                     else if((indirect_block.ptr[seek_block] = freeMap.find()) == 0)//if want to write check space
                         return null;
-                    else //update the indirect ptr
+                    else //update the indirect ptr,indirect block is changed in former 'else if' step
                     {
                     	disk.write(inode.ptr[10],indirect_block);
                     }
                 return new DirectBlock(disk, indirect_block.ptr[seek_block], blockOff, direct_fresh);
         		
         	}
-        	else if(blockNum>=14&&blockNum<30)
+        	else if(blockNum>=10+128&&blockNum<10+128+128*128)
         	{
+        		int seek_block_first=(blockNum-138)/128;
+        		int seek_block_second=(blockNum-138)%128;
+        		boolean indirect_fresh = inode.ptr[11] == 0;
+        		//if first layer is new--indoe ptr unset
+        		if(indirect_fresh)
+        		{
+        			if(mode==MODE.r)
+        				return DirectBlock.hole;//if the indirect block not find return the hole	
+        			else if((inode.ptr[11] = freeMap.find()) == 0) //get the indirect block and check the ptr on it to see if there is space 
+        				return null;
+        			else//add new indirect block 
+        			{
+        				disk.write(inode.ptr[11], new IndirectBlock());
+        			}
+                        
+        		}
+        		// if not fresh, find the second layer
+        		IndirectBlock first_layer=new IndirectBlock();
+        		disk.read(inode.ptr[11], first_layer);
+        		//check if the ptr in first layer we looking for is fresh
+        		boolean indirect_first_layer_fresh=first_layer.ptr[seek_block_first]==0;
+           		if(indirect_first_layer_fresh)
+        		{
+        			if(mode==MODE.r)
+        				return DirectBlock.hole;//if the indirect block not find return the hole	
+        			else if((first_layer.ptr[seek_block_first] = freeMap.find()) == 0) //get the indirect block and check the ptr on it to see if there is space 
+        				return null;
+        			else//add new indirect block 
+        			{
+        				disk.write(first_layer.ptr[seek_block_first], new IndirectBlock());
+        				disk.write(inode.ptr[11], first_layer);
+        			}
+                        
+        		}
+           		//not fresh then get the second layer
+           		IndirectBlock second_layer=new IndirectBlock();
+           		disk.read(first_layer.ptr[seek_block_first],second_layer);
+           		boolean direct_fresh=second_layer.ptr[seek_block_second]==0;//if that direct block is empty or not
+        		if(direct_fresh)
+                    if(mode == MODE.r)
+                        return DirectBlock.hole;
+                    else if((second_layer.ptr[seek_block_second]= freeMap.find()) == 0)//if want to write check space
+                        return null;
+                    else //update the indirect ptr
+                    {
+                    	disk.write(first_layer.ptr[seek_block_first],second_layer);
+                    }
+
+                return new DirectBlock(disk, second_layer.ptr[seek_block_second], blockOff, direct_fresh);
+        		//System.err.println("Large files unsupported,"+blockNum+" blocks required!");
+                //System.exit(1);
+        	}
+        	else if(blockNum>=10+128+128*128&&blockNum<10+128+128*128+128*128*128)
+        	{
+        		//my recipient for mapping
+        		int seek_first=(blockNum-10)/(128*128);
+        		int seek_second=(blockNum-10-seek_first*128*128)/128;
+        		int seek_third=(blockNum-10-seek_first*128*128-seek_second*128)%128;
         		
-        		System.err.println("Large files unsupported,"+blockNum+" blocks required!");
-                System.exit(1);
+        		boolean indirect_fresh = inode.ptr[12] == 0;
+        		//if first layer is new--indoe ptr unset
+        		if(indirect_fresh)
+        		{
+        			if(mode==MODE.r)
+        				return DirectBlock.hole;//if the indirect block not find return the hole	
+        			else if((inode.ptr[12] = freeMap.find()) == 0) //get the indirect block and check the ptr on it to see if there is space 
+        				return null;
+        			else//add new indirect block 
+        			{
+        				disk.write(inode.ptr[12], new IndirectBlock());
+        			}
+        		}
+        		IndirectBlock first_layer=new IndirectBlock();
+        		disk.read(inode.ptr[12], first_layer);
+        		//check the ptr we want
+        		if(first_layer.ptr[seek_first]==0)
+        		{
+        			if(mode==MODE.r)
+        				return DirectBlock.hole;//if the indirect block not find return the hole	
+        			else if((first_layer.ptr[seek_first] = freeMap.find()) == 0) //get the indirect block and check the ptr on it to see if there is space 
+        				return null;
+        			else//add new indirect block 
+        			{
+        				disk.write(first_layer.ptr[seek_first], new IndirectBlock());
+        				disk.write(inode.ptr[12], first_layer);
+        			}	
+        		}
+        		//
+        		IndirectBlock second_layer=new IndirectBlock();
+        		disk.read(first_layer.ptr[seek_second], second_layer);
+        		if(second_layer)
+        		
+        		//System.err.println("Large files unsupported,"+blockNum+" blocks required!");
+                //System.exit(1);
         	}
-        	else if(blockNum>=30&&blockNum<94)
-        	{
-        		System.err.println("Large files unsupported,"+blockNum+" blocks required!");
-                System.exit(1);
-        	}
-        	
-        	//System.err.println("Large files unsupported");
-            //System.exit(1);
         }
         boolean fresh = inode.ptr[blockNum] == 0;
 
