@@ -412,7 +412,7 @@ public class MyFileSystem implements FileSystem {
         		//System.err.println("Large files unsupported,"+blockNum+" blocks required!");
                 //System.exit(1);
         	}
-        	else if(blockNum>=10+128+128*128&&blockNum<10+128+128*128+128*128*128)
+        	else if(blockNum>=10+128+128*128 && blockNum<10+128+128*128+128*128*128)
         	{
         		//my recipient for mapping
         		int seek_first=(blockNum-10)/(128*128);
@@ -435,7 +435,7 @@ public class MyFileSystem implements FileSystem {
         		IndirectBlock first_layer=new IndirectBlock();
         		disk.read(inode.ptr[12], first_layer);
         		//check the ptr we want
-        		if(first_layer.ptr[seek_first]==0)
+        		if(first_layer.ptr[seek_first]==0)//
         		{
         			if(mode==MODE.r)
         				return DirectBlock.hole;//if the indirect block not find return the hole	
@@ -447,20 +447,39 @@ public class MyFileSystem implements FileSystem {
         				disk.write(inode.ptr[12], first_layer);
         			}	
         		}
-        		//
+        		//second layer
         		IndirectBlock second_layer=new IndirectBlock();
-        		disk.read(first_layer.ptr[seek_second], second_layer);
-        		if(second_layer)
-        		
-        		//System.err.println("Large files unsupported,"+blockNum+" blocks required!");
-                //System.exit(1);
+        		disk.read(first_layer.ptr[seek_first], second_layer);
+        		if(second_layer.ptr[seek_second]==0)
+        		{
+        			if(mode==MODE.r)
+        				return DirectBlock.hole;//if the indirect block not find return the hole	
+        			else if((second_layer.ptr[seek_second] = freeMap.find()) == 0) //get the indirect block and check the ptr on it to see if there is space 
+        				return null;
+        			else//add new indirect block 
+        			{
+        				disk.write(second_layer.ptr[seek_second], new IndirectBlock());
+        				disk.write(first_layer.ptr[seek_first], second_layer);
+        			}	
+        		}
+        		IndirectBlock third_layer= new IndirectBlock();
+        		disk.read(second_layer.ptr[seek_second], third_layer);
+        		boolean direct_fresh=third_layer.ptr[seek_third]==0;
+        		if(direct_fresh)
+        		{
+        			if(mode==MODE.r)
+        				return DirectBlock.hole;//if the indirect block not find return the hole	
+        			else if((third_layer.ptr[seek_third] = freeMap.find()) == 0) //get the indirect block and check the ptr on it to see if there is space 
+        				return null;
+        			else//add new indirect block 
+        			{
+        				disk.write(second_layer.ptr[seek_second], third_layer);
+        			}	
+        		}
+        		return new DirectBlock(disk, third_layer.ptr[seek_third], blockOff, direct_fresh);
         	}
         }
         boolean fresh = inode.ptr[blockNum] == 0;
-
-        // The blockNum is a logical block number referring to a
-        // pointer in the inode.
-
         if(fresh)
             if(mode == MODE.r)
                 return DirectBlock.hole;
